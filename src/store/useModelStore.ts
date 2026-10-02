@@ -2,6 +2,10 @@ import { create } from 'zustand'
 
 export type ModelFormat = 'glb' | 'gltf' | 'stl' | 'obj'
 export type MaterialPreset = 'original' | 'clay' | 'gloss' | 'metal' | 'wireframe' | 'normals'
+export type LightingMode = 'studio' | 'soft' | 'high-key' | 'technical'
+export type EnvironmentScene = 'studio' | 'city' | 'warehouse' | 'apartment' | 'sunset'
+export type BackdropMode = 'paper' | 'white' | 'dark' | 'grid'
+export type CameraMode = 'perspective' | 'orthographic'
 
 export type ModelMetrics = {
   vertices: number
@@ -23,6 +27,12 @@ type ModelStore = {
   wireframeOverlay: boolean
   autoRotate: boolean
   isDark: boolean
+  lighting: LightingMode
+  brightness: number
+  environmentScene: EnvironmentScene
+  backdrop: BackdropMode
+  cameraMode: CameraMode
+  isViewPanelOpen: boolean
   metrics: ModelMetrics | null
   cameraRevision: number
   loadFile: (file: File) => void
@@ -36,6 +46,12 @@ type ModelStore = {
   resetCamera: () => void
   toggleAutoRotate: () => void
   toggleTheme: () => void
+  setLighting: (lighting: LightingMode) => void
+  setBrightness: (brightness: number) => void
+  setEnvironmentScene: (environmentScene: EnvironmentScene) => void
+  setBackdrop: (backdrop: BackdropMode) => void
+  setCameraMode: (cameraMode: CameraMode) => void
+  toggleViewPanel: () => void
 }
 
 const acceptedFormats: ModelFormat[] = ['glb', 'gltf', 'stl', 'obj']
@@ -54,6 +70,12 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   wireframeOverlay: false,
   autoRotate: false,
   isDark: false,
+  lighting: 'studio',
+  brightness: 1,
+  environmentScene: 'studio',
+  backdrop: 'paper',
+  cameraMode: 'perspective',
+  isViewPanelOpen: false,
   metrics: null,
   cameraRevision: 0,
   loadFile: (file) => get().loadFiles([file]),
@@ -90,4 +112,10 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   resetCamera: () => set((state) => ({ cameraRevision: state.cameraRevision + 1 })),
   toggleAutoRotate: () => set((state) => ({ autoRotate: !state.autoRotate })),
   toggleTheme: () => set((state) => ({ isDark: !state.isDark })),
+  setLighting: (lighting) => set({ lighting }),
+  setBrightness: (brightness) => set({ brightness }),
+  setEnvironmentScene: (environmentScene) => set({ environmentScene }),
+  setBackdrop: (backdrop) => set({ backdrop }),
+  setCameraMode: (cameraMode) => set({ cameraMode }),
+  toggleViewPanel: () => set((state) => ({ isViewPanelOpen: !state.isViewPanelOpen })),
 }))

@@ -140,15 +140,26 @@ function SceneContent() {
   const format = useModelStore((s) => s.format)
   const autoRotate = useModelStore((s) => s.autoRotate)
   const isDark = useModelStore((s) => s.isDark)
+  const lighting = useModelStore((s) => s.lighting)
+  const brightness = useModelStore((s) => s.brightness)
+  const environmentScene = useModelStore((s) => s.environmentScene)
+  const backdrop = useModelStore((s) => s.backdrop)
+  const palette = backdrop === 'white' ? '#ffffff' : backdrop === 'dark' ? '#0a0a0a' : isDark ? '#0a0a0a' : '#f7f7f5'
+  const lights = {
+    studio: { ambient: isDark ? 0.72 : 0.62, hemi: isDark ? 0.85 : 0.65, key: isDark ? 3.2 : 2.8, fill: 1.15, rim: 0.8 },
+    soft: { ambient: 0.95, hemi: 1.05, key: 1.6, fill: 0.9, rim: 0.55 },
+    'high-key': { ambient: 1.25, hemi: 1.35, key: 2.35, fill: 1.75, rim: 1.15 },
+    technical: { ambient: 0.3, hemi: 0.22, key: 3.5, fill: 0.42, rim: 0.25 },
+  }[lighting]
   return <>
-    <color attach="background" args={[isDark ? '#0a0a0a' : '#f7f7f5']} />
-    <ambientLight intensity={isDark ? 0.72 : 0.62} />
-    <hemisphereLight args={['#ffffff', '#bdbdbd', isDark ? 0.85 : 0.65]} />
-    <directionalLight position={[5, 7, 6]} intensity={isDark ? 3.2 : 2.8} />
-    <directionalLight position={[-6, 3, 2]} intensity={1.15} />
-    <directionalLight position={[1, 2, -6]} intensity={0.8} />
+    <color attach="background" args={[palette]} />
+    <ambientLight intensity={lights.ambient * brightness} />
+    <hemisphereLight args={['#ffffff', '#bdbdbd', lights.hemi * brightness]} />
+    <directionalLight position={[5, 7, 6]} intensity={lights.key * brightness} />
+    <directionalLight position={[-6, 3, 2]} intensity={lights.fill * brightness} />
+    <directionalLight position={[1, 2, -6]} intensity={lights.rim * brightness} />
     <Suspense fallback={null}>
-      <Environment preset="studio" environmentIntensity={0.35} />
+      <Environment preset={environmentScene} environmentIntensity={0.35 * brightness} />
     </Suspense>
     <Bounds margin={1.35} interpolateFunc={(t) => t * t * (3 - 2 * t)}>
       <ResetBounds />
@@ -162,6 +173,7 @@ function SceneContent() {
       </ModelErrorBoundary>
     </Bounds>
     <ContactShadows position={[0, -0.12, 0]} opacity={0.4} blur={1.5} far={5} resolution={512} />
+    {backdrop === 'grid' && <gridHelper args={[20, 20, isDark ? '#404040' : '#737373', isDark ? '#262626' : '#d4d4d4']} position={[0, -0.125, 0]} />}
     <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={20} autoRotate={autoRotate} autoRotateSpeed={1} />
   </>
 }
@@ -176,7 +188,8 @@ class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 }
 
 export function ModelScene() {
-  return <SceneErrorBoundary><Canvas camera={{ position: [4, 3, 5], fov: 42 }} dpr={[1, 2]} shadows onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace }}>
+  const cameraMode = useModelStore((s) => s.cameraMode)
+  return <SceneErrorBoundary><Canvas key={cameraMode} orthographic={cameraMode === 'orthographic'} camera={cameraMode === 'orthographic' ? { position: [4, 3, 5], zoom: 85 } : { position: [4, 3, 5], fov: 42 }} dpr={[1, 2]} shadows onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace }}>
     <SceneContent />
   </Canvas></SceneErrorBoundary>
 }

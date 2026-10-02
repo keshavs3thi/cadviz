@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import { Box, FolderOpen, Moon, RotateCcw, Rotate3D, Sun, Upload, X } from 'lucide-react'
+import { Box, FolderOpen, Moon, RotateCcw, Rotate3D, SlidersHorizontal, Sun, Upload, X } from 'lucide-react'
 import { ModelScene } from './components/ModelScene'
 import { useModelStore, type MaterialPreset } from './store/useModelStore'
 
@@ -100,9 +100,39 @@ function Hud() {
   </div>
 }
 
+function ViewSettings() {
+  const isOpen = useModelStore((s) => s.isViewPanelOpen)
+  const toggle = useModelStore((s) => s.toggleViewPanel)
+  const lighting = useModelStore((s) => s.lighting)
+  const setLighting = useModelStore((s) => s.setLighting)
+  const brightness = useModelStore((s) => s.brightness)
+  const setBrightness = useModelStore((s) => s.setBrightness)
+  const scene = useModelStore((s) => s.environmentScene)
+  const setScene = useModelStore((s) => s.setEnvironmentScene)
+  const backdrop = useModelStore((s) => s.backdrop)
+  const setBackdrop = useModelStore((s) => s.setBackdrop)
+  const camera = useModelStore((s) => s.cameraMode)
+  const setCamera = useModelStore((s) => s.setCameraMode)
+  const isDark = useModelStore((s) => s.isDark)
+  const buttonClass = (active: boolean) => `border-b border-r border-current px-2 py-2 text-left text-[9px] uppercase tracking-[0.12em] ${active ? 'bg-current text-white' : 'hover:bg-neutral-100'} ${isDark && !active ? 'hover:bg-neutral-900' : ''}`
+  return <div className="absolute right-4 top-4 z-10 w-64 text-black">
+    <button onClick={toggle} className={`ml-auto flex items-center gap-2 border px-2.5 py-2 text-[9px] uppercase tracking-[0.14em] ${isDark ? 'border-[#e5e5e5] bg-[#0a0a0a] text-[#e5e5e5]' : 'border-black bg-white'}`}><SlidersHorizontal size={14} strokeWidth={1} /> View</button>
+    {isOpen && <section className={`mt-2 border p-3 ${isDark ? 'border-[#e5e5e5] bg-[#0a0a0a] text-[#e5e5e5]' : 'border-black bg-white'}`}>
+      <div className="mb-3 flex items-center justify-between border-b border-current pb-2"><span className="text-[10px] font-medium uppercase tracking-[0.16em]">View settings</span><button onClick={toggle} aria-label="Close view settings"><X size={14} strokeWidth={1} /></button></div>
+      <div className="space-y-4">
+        <div><p className="mb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60">Lighting</p><div className="grid grid-cols-2 border-l border-t border-current">{(['studio', 'soft', 'high-key', 'technical'] as const).map((item) => <button key={item} onClick={() => setLighting(item)} className={buttonClass(lighting === item)}>{item.replace('-', ' ')}</button>)}</div></div>
+        <label className="block"><span className="mb-2 flex justify-between text-[9px] uppercase tracking-[0.14em]"><span>Brightness</span><span className="font-mono">{brightness.toFixed(2)}×</span></span><input type="range" min="0.25" max="2.5" step="0.05" value={brightness} onChange={(event) => setBrightness(Number(event.target.value))} /></label>
+        <div><p className="mb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60">Environment</p><div className="grid grid-cols-1 border-l border-t border-current">{(['studio', 'city', 'warehouse', 'apartment', 'sunset'] as const).map((item) => <button key={item} onClick={() => setScene(item)} className={buttonClass(scene === item)}>{item}</button>)}</div></div>
+        <div><p className="mb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60">Backdrop</p><div className="grid grid-cols-2 border-l border-t border-current">{(['paper', 'white', 'dark', 'grid'] as const).map((item) => <button key={item} onClick={() => setBackdrop(item)} className={buttonClass(backdrop === item)}>{item}</button>)}</div></div>
+        <div><p className="mb-1.5 text-[9px] uppercase tracking-[0.14em] opacity-60">Camera</p><div className="grid grid-cols-2 border-l border-t border-current">{(['perspective', 'orthographic'] as const).map((item) => <button key={item} onClick={() => setCamera(item)} className={buttonClass(camera === item)}>{item === 'perspective' ? 'Perspective' : 'Orthographic'}</button>)}</div></div>
+      </div>
+    </section>}
+  </div>
+}
+
 export default function App() {
   const isDark = useModelStore((s) => s.isDark)
   return <main className={`h-full ${isDark ? 'bg-[#0a0a0a] text-[#e5e5e5]' : 'bg-white text-black'}`}>
-    <div className="flex h-full flex-col md:flex-row"><section className="relative min-h-[55vh] flex-1 md:min-h-0"><ModelScene /><Hud /><div className="pointer-events-none absolute bottom-4 left-4 text-[9px] uppercase tracking-[0.16em]">Orbit / scroll / pan</div></section><Sidebar /></div>
+    <div className="flex h-full flex-col md:flex-row"><section className="relative min-h-[55vh] flex-1 md:min-h-0"><ModelScene /><Hud /><ViewSettings /></section><Sidebar /></div>
   </main>
 }
