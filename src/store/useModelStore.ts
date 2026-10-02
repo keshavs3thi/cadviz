@@ -11,6 +11,7 @@ export type ModelMetrics = {
 
 type ModelStore = {
   activeModelUrl: string | null
+  assetUrls: Record<string, string>
   fileName: string | null
   format: ModelFormat | null
   isLoading: boolean
@@ -25,6 +26,7 @@ type ModelStore = {
   metrics: ModelMetrics | null
   cameraRevision: number
   loadFile: (file: File) => void
+  loadFiles: (files: File[]) => void
   clearModel: () => void
   setLoading: (isLoading: boolean) => void
   setError: (error: string | null) => void
@@ -40,6 +42,7 @@ const acceptedFormats: ModelFormat[] = ['glb', 'gltf', 'stl', 'obj']
 
 export const useModelStore = create<ModelStore>((set, get) => ({
   activeModelUrl: null,
+  assetUrls: {},
   fileName: null,
   format: null,
   isLoading: false,
@@ -53,23 +56,31 @@ export const useModelStore = create<ModelStore>((set, get) => ({
   isDark: false,
   metrics: null,
   cameraRevision: 0,
-  loadFile: (file) => {
-    const extension = file.name.split('.').pop()?.toLowerCase() as ModelFormat | undefined
-    if (!extension || !acceptedFormats.includes(extension)) {
+  loadFile: (file) => get().loadFiles([file]),
+  loadFiles: (files) => {
+    const model = files.find((file) => acceptedFormats.includes(file.name.split('.').pop()?.toLowerCase() as ModelFormat))
+    const extension = model?.name.split('.').pop()?.toLowerCase() as ModelFormat | undefined
+    if (!model || !extension) {
       set({ error: 'Unsupported format. Use GLB, GLTF, STL, or OBJ.' })
       return
     }
     const previousUrl = get().activeModelUrl
-    if (previousUrl) URL.revokeObjectURL(previousUrl)
+    if (previousUrl) Object.values(get().assetUrls).forEach((url) => URL.revokeObjectURL(url))
+    const assetUrls = files.reduce<Record<string, string>>((urls, file) => {
+      const url = URL.createObjectURL(file)
+      urls[file.name] = url
+      if (file.webkitRelativePath) urls[file.webkitRelativePath.replace(/\\/g, '/')] = url
+      return urls
+    }, {})
     set({
-      activeModelUrl: URL.createObjectURL(file), fileName: file.name, format: extension,
-      isLoading: true, error: null, metrics: null, cameraRevision: get().cameraRevision + 1,
+      activeModelUrl: assetUrls[model.name], assetUrls, fileName: model.name, format: extension,
+      isLoading: true, error: null, metrics: null,
     })
   },
   clearModel: () => {
     const previousUrl = get().activeModelUrl
-    if (previousUrl) URL.revokeObjectURL(previousUrl)
-    set({ activeModelUrl: null, fileName: null, format: null, isLoading: false, error: null, metrics: null, cameraRevision: get().cameraRevision + 1 })
+    if (previousUrl) Object.values(get().assetUrls).forEach((url) => URL.revokeObjectURL(url))
+    set({ activeModelUrl: null, assetUrls: {}, fileName: null, format: null, isLoading: false, error: null, metrics: null })
   },
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),

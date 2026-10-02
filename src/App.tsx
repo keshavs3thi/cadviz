@@ -22,17 +22,17 @@ function Metric({ label, value }: { label: string; value: string }) {
 function Loader() {
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
-  const loadFile = useModelStore((s) => s.loadFile)
+  const loadFiles = useModelStore((s) => s.loadFiles)
   const fileName = useModelStore((s) => s.fileName)
   const clearModel = useModelStore((s) => s.clearModel)
   const isLoading = useModelStore((s) => s.isLoading)
   const error = useModelStore((s) => s.error)
-  const select = (file?: File) => file && loadFile(file)
-  const onChange = (event: ChangeEvent<HTMLInputElement>) => { select(event.target.files?.[0]); event.target.value = '' }
-  const onDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); select(event.dataTransfer.files[0]) }
+  const select = (files: FileList | File[]) => files.length && loadFiles(Array.from(files))
+  const onChange = (event: ChangeEvent<HTMLInputElement>) => { if (event.target.files) select(event.target.files); event.target.value = '' }
+  const onDrop = (event: DragEvent<HTMLDivElement>) => { event.preventDefault(); setDragging(false); select(event.dataTransfer.files) }
 
   return <section className="border-b border-current">
-    <input ref={inputRef} className="hidden" type="file" accept=".glb,.gltf,.stl,.obj" onChange={onChange} />
+    <input ref={inputRef} className="hidden" type="file" multiple accept=".glb,.gltf,.stl,.obj,.bin,image/*" onChange={onChange} />
     <div onDragOver={(e) => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
       className={`m-4 border p-4 transition-none ${dragging ? 'bg-current text-white' : ''}`}>
       {fileName ? <div className="flex items-center justify-between gap-3">
@@ -42,6 +42,7 @@ function Loader() {
         <Upload size={16} strokeWidth={1} />
         <p className="mt-3 text-[10px] font-medium uppercase tracking-[0.14em]">Drop model file</p>
         <p className="mt-1 font-mono text-[9px] opacity-60">GLB / GLTF / STL / OBJ</p>
+        <p className="mt-1 font-mono text-[8px] opacity-50">For GLTF, include its .bin and textures.</p>
         <button onClick={() => inputRef.current?.click()} className="mt-4 flex items-center gap-2 border border-current px-2 py-1.5 text-[9px] font-medium uppercase tracking-[0.14em] hover:bg-current hover:text-white"><FolderOpen size={13} strokeWidth={1} /> Browse files</button>
       </div>}
     </div>

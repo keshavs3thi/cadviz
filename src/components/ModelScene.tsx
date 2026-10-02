@@ -1,6 +1,6 @@
 import { Bounds, ContactShadows, Environment, OrbitControls, useBounds } from '@react-three/drei'
 import { Canvas, useLoader } from '@react-three/fiber'
-import { useEffect, useMemo } from 'react'
+import { Component, Suspense, useEffect, useMemo, useRef, type ReactNode } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
@@ -64,18 +64,28 @@ function MaterializedObject({ object }: { object: THREE.Object3D }) {
   const wireframeOverlay = useModelStore((s) => s.wireframeOverlay)
   const setMetrics = useModelStore((s) => s.setMetrics)
   const setLoading = useModelStore((s) => s.setLoading)
+  const bounds = useBounds()
   const clone = useMemo(() => object.clone(true), [object])
 
   useEffect(() => {
     setMetrics(calculateMetrics(clone))
     setLoading(false)
-  }, [clone, setLoading, setMetrics])
+    // Frame only once after this object has entered the scene. Continuous bounds
+    // observation would override the user's OrbitControls interaction.
+    bounds.refresh(clone).fit().clip()
+  }, [bounds, clone, setLoading, setMetrics])
   useEffect(() => { applyMaterial(clone, preset, roughness, metalness, color, wireframeOverlay) }, [clone, preset, roughness, metalness, color, wireframeOverlay])
   return <primitive object={clone} />
 }
 
-function GltfModel({ url }: { url: string }) {
-  const gltf = useLoader(GLTFLoader, url)
+function GltfModel({ url, assetUrls }: { url: string; assetUrls: Record<string, string> }) {
+  const gltf = useLoader(GLTFLoader, url, (loader) => {
+    loader.manager.setURLModifier((resource) => {
+      const cleanPath = decodeURIComponent(resource).split('?')[0].replace(/\\/g, '/')
+      const fileName = cleanPath.slice(cleanPath.lastIndexOf('/') + 1)
+      return assetUrls[cleanPath] ?? assetUrls[fileName] ?? resource
+    })
+  })
   return <MaterializedObject object={gltf.scene} />
 }
 function ObjModel({ url }: { url: string }) {
@@ -104,36 +114,69 @@ function SampleModel() {
 function ResetBounds() {
   const api = useBounds()
   const cameraRevision = useModelStore((s) => s.cameraRevision)
-  useEffect(() => { api.refresh().fit().clip() }, [api, cameraRevision])
+  const isFirstRender = useRef(true)
+  useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return }
+    api.refresh().fit().clip()
+  }, [api, cameraRevision])
   return null
+}
+
+class ModelErrorBoundary extends Component<{ children: ReactNode; resetKey: string | null }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(error: Error) {
+    useModelStore.getState().setError(`Unable to load model: ${error.message.includes('fetch') ? 'include the .gltf with its .bin and texture files.' : error.message}`)
+  }
+  componentDidUpdate(previousProps: { children: ReactNode; resetKey: string | null }) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.failed) this.setState({ failed: false })
+  }
+  render() { return this.state.failed ? null : this.props.children }
 }
 
 function SceneContent() {
   const url = useModelStore((s) => s.activeModelUrl)
+  const assetUrls = useModelStore((s) => s.assetUrls)
   const format = useModelStore((s) => s.format)
   const autoRotate = useModelStore((s) => s.autoRotate)
   const isDark = useModelStore((s) => s.isDark)
   return <>
     <color attach="background" args={[isDark ? '#0a0a0a' : '#f7f7f5']} />
-    <ambientLight intensity={isDark ? 0.58 : 0.45} />
-    <directionalLight position={[5, 7, 6]} intensity={isDark ? 2.5 : 2.1} />
-    <directionalLight position={[-6, 3, 2]} intensity={0.65} />
-    <directionalLight position={[1, 2, -6]} intensity={0.45} />
-    <Environment preset="studio" environmentIntensity={0.35} />
-    <Bounds fit clip observe margin={1.35}>
+    <ambientLight intensity={isDark ? 0.72 : 0.62} />
+    <hemisphereLight args={['#ffffff', '#bdbdbd', isDark ? 0.85 : 0.65]} />
+    <directionalLight position={[5, 7, 6]} intensity={isDark ? 3.2 : 2.8} />
+    <directionalLight position={[-6, 3, 2]} intensity={1.15} />
+    <directionalLight position={[1, 2, -6]} intensity={0.8} />
+    <Suspense fallback={null}>
+      <Environment preset="studio" environmentIntensity={0.35} />
+    </Suspense>
+    <Bounds margin={1.35} interpolateFunc={(t) => t * t * (3 - 2 * t)}>
       <ResetBounds />
-      {url && format === 'glb' || url && format === 'gltf' ? <GltfModel url={url} /> : null}
-      {url && format === 'obj' ? <ObjModel url={url} /> : null}
-      {url && format === 'stl' ? <StlModel url={url} /> : null}
-      {!url ? <SampleModel /> : null}
+      <ModelErrorBoundary resetKey={url}>
+        <Suspense fallback={null}>
+          {(url && (format === 'glb' || format === 'gltf')) ? <GltfModel url={url} assetUrls={assetUrls} /> : null}
+          {url && format === 'obj' ? <ObjModel url={url} /> : null}
+          {url && format === 'stl' ? <StlModel url={url} /> : null}
+          {!url ? <SampleModel /> : null}
+        </Suspense>
+      </ModelErrorBoundary>
     </Bounds>
     <ContactShadows position={[0, -0.12, 0]} opacity={0.4} blur={1.5} far={5} resolution={512} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={1.5} maxDistance={20} autoRotate={autoRotate} autoRotateSpeed={1} />
   </>
 }
 
+class SceneErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    if (this.state.failed) return <div className="flex h-full items-center justify-center bg-[#f7f7f5] p-6 font-mono text-[10px] text-black">WebGL scene unavailable. Check your browser’s hardware acceleration.</div>
+    return this.props.children
+  }
+}
+
 export function ModelScene() {
-  return <Canvas camera={{ position: [4, 3, 5], fov: 42 }} dpr={[1, 2]} shadows onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace }}>
+  return <SceneErrorBoundary><Canvas camera={{ position: [4, 3, 5], fov: 42 }} dpr={[1, 2]} shadows onCreated={({ gl }) => { gl.outputColorSpace = THREE.SRGBColorSpace }}>
     <SceneContent />
-  </Canvas>
+  </Canvas></SceneErrorBoundary>
 }
